@@ -2,6 +2,7 @@
 
 \usepackage[margin=2.5cm]{geometry}
 \usepackage{amsmath,amssymb,mathtools}
+\usepackage{amsthm}
 \usepackage{booktabs,tabularx,array}
 \usepackage{enumitem}
 \usepackage{microtype}
@@ -18,6 +19,8 @@
 \newcommand{\xtil}{\tilde x}
 \newcommand{\upast}{U_{\mathrm{past}}}
 
+\newtheorem{lemma}{Lemma}
+
 \setlist{itemsep=2pt,topsep=4pt}
 
 \title{Neuron-Dropout Faults in Fractional-Order Reservoirs:\\ A Theoretical Analysis}
@@ -33,7 +36,7 @@ Clamping a neuron's weights to zero acts on a fractional-order reservoir (FOR) a
 \begin{itemize}
   \item \textbf{The path depends on $\alpha$.} After a permanent fault the reservoir relaxes to its new state as a power law, $t^{-\alpha}$, not exponentially. With an untruncated Gr\"unwald--Letnikov (GL) history there is no characteristic recovery time.
   \item \textbf{The endpoint does not, at a fixed operating point.} Given the neurons' mean rates and gains, the fault's shift of the mean operating point is independent of $\alpha$. With a truncated GL buffer, $\alpha$ and $L$ enter through an effective leak. In a spiking reservoir the rates and gains themselves depend on $\alpha$, so the endpoint does too, but only through them.
-  \item \textbf{In hardware, the buffer length matters as much as $\alpha$.} Truncation at $L$ steps caps recovery at about $1.5L$ to $2.5L$ steps. For short buffers, recovery time peaks at intermediate $\alpha$.
+  \item \textbf{In hardware, the buffer length matters as much as $\alpha$.} Truncation at $L$ steps caps recovery: for $\tau_m = 10$ steps at about $1.5L$ to $2.5L$ steps, and longer for slower membranes. For short buffers, recovery time peaks at intermediate $\alpha$.
   \item \textbf{Lost memory capacity with a retrained readout is exactly 1 per neuron in the linear, noise-free limit.} That holds for every $\alpha$. Any $\alpha$-dependence of fault tolerance measured with retraining therefore comes from noise, spiking nonlinearity or quantization, which tells you where to look.
   \item \textbf{Random dropout moves the reservoir toward the ordered regime.} The effective coupling gain shrinks by a factor of $\sqrt{1-p}$ when a fraction $p$ of neurons is removed.
 \end{itemize}
@@ -56,7 +59,37 @@ I_{i,n} = \sum_j W_{ij}\, s_{j,n-1} + \sum_m W^{\mathrm{in}}_{im}\, u_{m,n},
 \end{equation}
 with threshold $V_{\mathrm{th}}$, reset to $V_{\mathrm{reset}}$, spikes $s_j$ and a linear readout $y_n = W_{\mathrm{out}} x_n$. For $0<\alpha<1$, every $c_k$ with $k\ge 1$ is negative and $\sum_{k\ge 0} c_k = 0$. So $-\sum_k c_k V_{n-k}$ is a weighted average of past potentials whose weights $|c_k|$ decay as $k^{-1-\alpha}$. For $\alpha=1$ only $c_1=-1$ survives and the update reduces to the forward-Euler LIF neuron.
 
+\begin{lemma}
+  For $0<\alpha < 1$ and $k\geq 1$ every $c_k(\alpha)$ is negative and
+  \[
+  \sum_{k=0}^{\infty} c_k(\alpha) = 0
+  \]
+\end{lemma}
+\begin{proof}
+  We first show the ratio 
+  \[
+  \frac{c_k}{c_{k-1}} = \frac{k-1-\alpha}{k}
+  \]
+  To see this we expand $c_k$ and $c_{k-1}$:
+  \[
+  \frac{c_k}{c_{k-1}} = \frac{(-1)^k{\alpha\choose k}}{(-1)^{k-1}{\alpha\choose k-1}} = -\frac{{\alpha\choose k}}{{\alpha\choose k-1}}
+  \]
+  Note that for positive non-integer $\alpha$ we use the Gamma function $\Gamma(\cdot)$ for binomial coefficients:
+  \[
+  {\alpha\choose k} = \frac{\Gamma(\alpha+1)}{\Gamma(k+1)\Gamma(\alpha - k + 1)} \implies \frac{{\alpha\choose k}}{{\alpha\choose k-1}} = 
+  \frac{\frac{\Gamma(\alpha+1)}{\Gamma(k+1)\Gamma(\alpha - k + 1)}  }{\frac{\Gamma(\alpha+1)}{\Gamma(k)\Gamma(\alpha - k + 2)}}
+  \]
+  \[
+  = \frac{\Gamma(k)\Gamma(\alpha-k+2)}{\Gamma(k+1)\Gamma(\alpha-k+1)}
+  \]
+  Note that $\Gamma(z+1) = z\Gamma(z)$ for any complex number with positive real part. Therefore we can simplify in the following manner:
+  \[
+  \frac{(\alpha-k+1)\Gamma(k)\Gamma(\alpha-k+1)}{k\Gamma(k)\Gamma(\alpha-k+1)}
+  = \frac{}{}
+  \]
+\end{proof}
 \subsection{Linearization}
+\label{sec:linearization}
 
 The linear theory needs each neuron's spike output written as a smooth function of a continuous state. The membrane potential itself will not do: it is reset after every spike, so its trajectory is a sawtooth and spiking is not a smooth function of it. The state used instead is the \emph{free membrane potential} $V^{f}$, the potential the neuron would have with threshold and reset removed. It is neuron $i$'s input passed through the fractional membrane filter:
 \begin{equation}
@@ -77,7 +110,19 @@ The $f$--$I$ curve here is the \emph{noise-averaged} one: rate against mean inpu
 
 There are two practical ways to get $r_j$, $\gamma_j$ and $\bar V_j$. One is to drive a single GL-FLIF neuron with input matching neuron $j$'s golden-run statistics, sweep the mean and take the slope of the measured rate. The other uses the golden run directly: replay the recorded $I_{j,n}$ through Eq.~\eqref{eq:vfree}, then regress $s_{j,n}$ on $V^{f}_{j,n}$. The slope estimates $\gamma_j$ and the mean of $V^{f}_{j,n}$ gives $\bar V_j$. The regression includes truncation and quantization automatically and costs nothing extra on the HiL rig.
 
-Substituting the linear spike response into $I_{i,n}$ and dropping the threshold gives the \emph{linear FOR}, with the free potentials as state, $x_n = V^{f}_n$:
+The linear FOR follows from Eq.~\eqref{eq:vfree} by substituting the linear spike response into $I_{i,n}$. Neuron $i$ receives the previous step's spikes, so Eq.~\eqref{eq:spikelin} is applied at $n-1$, and the recurrent input splits into a part that depends on the state and a constant:
+\begin{equation*}
+\sum_j W_{ij}\, s_{j,n-1} \approx \sum_j W_{ij}\,\gamma_j\, V^{f}_{j,n-1} + \sum_j W_{ij}\left( r_j - \gamma_j \bar V_j \right).
+\end{equation*}
+This is the only approximation in the linear model. The coefficient $W_{ij}\gamma_j$ is the $(i,j)$ entry of $\Wt = W\,\mathrm{diag}(\gamma)$: each synapse is scaled by the gain of the neuron that sends it. The leak splits the same way, $-(V^{f}_{i,n-1} - V_{\mathrm{rest}})/\tau_m = -V^{f}_{i,n-1}/\tau_m + V_{\mathrm{rest}}/\tau_m$.
+
+Now take the free potentials as state, $x_n = V^{f}_n$, and sort the terms inside the parentheses of Eq.~\eqref{eq:vfree} into three groups:
+\begin{itemize}
+  \item \textbf{Previous state:} $-x_{n-1}/\tau_m + \Wt x_{n-1} = A\, x_{n-1}$. The leak and the recurrent coupling share one matrix because both act on $x_{n-1}$: the leak because Eq.~\eqref{eq:vfree} evaluates it at $n-1$, the coupling because of the one-step spike delay.
+  \item \textbf{Input:} $W^{\mathrm{in}} u_n = B\, u_n$, which enters at step $n$ with no delay.
+  \item \textbf{Constants:} $(V_{\mathrm{rest}}/\tau_m + b)\mathbf{1} + W\left(r - \mathrm{diag}(\gamma)\,\bar V\right) = \beta$, where $\mathbf{1}$ is the all-ones vector.
+\end{itemize}
+The GL coefficients $c_k$ are scalars shared by all neurons, so the history sum carries over unchanged. No threshold remains: the state never resets, and the other neurons' spikes enter only through their linear response. Taking the approximation as an equality defines the \emph{linear FOR}:
 \begin{equation}
 \begin{gathered}
 x_n = \Delta t^{\alpha}\left( A\, x_{n-1} + B\, u_n + \beta \right) - \sum_{k=1}^{L} c_k\, x_{n-k}, \\
@@ -124,7 +169,7 @@ Let $x$ be the nominal trajectory and $x'$ the faulty one, and let $\delta = x' 
 D^{\alpha}\delta(t) = A'\,\delta(t) - q_j\, s_j(t), \qquad s_j(t) = r_j + \gamma_j\, \xtil_j(t), \qquad \delta(t) = 0 \ \text{ for } t < t_f,
 \label{eq:pert}
 \end{equation}
-where $\xtil_j = x_j - \bar V_j$ is the fluctuation of neuron $j$'s free potential about its mean. The forcing $-q_j s_j(t)$ is exactly what neuron $j$ used to send, with its sign flipped. Its mean is $q_j r_j$, set by the mean firing rate, not $a_j \bar V_j$; the two agree only if the $f$--$I$ curve is linear through the origin. For F-out the equation is the same and neuron $j$ keeps its readout term. For F-in, $s_j(t)$ is replaced by the difference between its nominal output and the output of the deafened neuron. The deafened neuron settles at the bias-driven rate $f_j(b)$, usually far from the original operating point, so that output comes from the $f$--$I$ curve rather than from the linearization.
+where $\xtil_j = x_j - \bar V_j$ is the fluctuation of neuron $j$'s free potential about its mean. The forcing $-q_j s_j(t)$ is exactly what neuron $j$ used to send, with its sign flipped. Its mean is $-q_j r_j$, set by the mean firing rate, not $-a_j \bar V_j$; the two agree only if the linearized spike response passes through the origin, $r_j = \gamma_j \bar V_j$. For F-out the equation is the same and neuron $j$ keeps its readout term. For F-in, $s_j(t)$ is replaced by the difference between its nominal output and the output of the deafened neuron. The deafened neuron settles at the bias-driven rate $f_j(b)$, usually far from the original operating point, so that output comes from the $f$--$I$ curve rather than from the linearization.
 
 \subsection{Solution}
 
@@ -161,11 +206,11 @@ It also helps to split neuron $j$'s signal into its mean and its fluctuation. Th
 \section{Recovery dynamics}
 \label{sec:recovery}
 
-A permanent fault relaxes toward its new state as $t^{-\alpha}$, and a transient fault decays as $t^{-1-\alpha}$. Both are power laws with no characteristic time. On real hardware the GL buffer length $L$ caps them, at about $2.5L$ steps at most.
+A permanent fault relaxes toward its new state as $t^{-\alpha}$, and a transient fault decays as $t^{-1-\alpha}$. Both are power laws with no characteristic time. On real hardware the GL buffer length $L$ caps them: after about $L$ steps the decay turns exponential, with a time constant set by $L$, $\alpha$ and $\tau_m$ (Section~\ref{sec:truncation}).
 
 \subsection{Permanent fault: step forcing}
 
-For one eigenmode $\lambda$ of $A'$ and a constant forcing $F$ (the projection onto that mode of $-q_j r_j$, the mean drive neuron $j$ used to send), the response is the fractional step response~\cite{podlubny1999}:
+For one eigenmode $\lambda$ of $A'$ and a constant forcing $F$ (the projection onto that mode of $-q_j r_j$, the negative of the mean drive neuron $j$ used to send), the response is the fractional step response~\cite{podlubny1999}:
 \begin{equation}
 \delta(t) = \delta^{*}\left[ 1 - E_{\alpha}\!\left(\lambda (t - t_f)^{\alpha}\right) \right], \qquad \delta^{*} = -F/\lambda, \qquad E_{\alpha}(\lambda t^{\alpha}) \approx \frac{-1}{\Gamma(1-\alpha)\,\lambda\, t^{\alpha}} \quad (t \to \infty).
 \label{eq:step}
@@ -181,12 +226,13 @@ For $\tau_m = 10$ steps ($|\lambda| = 0.1$) and $\varepsilon = 1\%$, the integer
 
 If neuron $j$ is removed for a short duration $d$ and then restored (a transient fault, or a crude stand-in for an upset), the forcing is a pulse and the response is the impulse response $G$:
 \begin{equation}
-\delta(t) \approx -F d\, G(t - t_f), \qquad G(t) \sim \frac{t^{-1-\alpha}}{\lambda^{2}\, |\Gamma(-\alpha)|} \quad (t \to \infty).
+\delta(t) \approx F d\, G(t - t_f), \qquad G(t) \sim \frac{t^{-1-\alpha}}{\lambda^{2}\, |\Gamma(-\alpha)|} \quad (t \to \infty).
 \label{eq:pulse}
 \end{equation}
-This tail is integrable, so a transient fault costs finite cumulative error. The cost is still heavy-tailed compared with the exponential $e^{\lambda t}$ of an integer-order neuron.
+Here $F$ is the same mode forcing as in Eq.~\eqref{eq:step}. Since $G > 0$, the tail has the sign of the permanent shift $\delta^{*} = -F/\lambda$. This tail is integrable, so a transient fault costs finite cumulative error. The cost is still heavy-tailed compared with the exponential $e^{\lambda t}$ of an integer-order neuron.
 
 \subsection{What truncation changes}
+\label{sec:truncation}
 
 The FPGA keeps only $L$ past samples. Truncation leaves a positive residual in the coefficient sum, which acts as an extra leak per step:
 \begin{equation}
@@ -223,15 +269,22 @@ So the power law holds for $n \ll L$, after which decay turns exponential. For $
 \node[anchor=east, font=\footnotesize, text=gray] at (axis cs:0.985,44) {integer-order LIF: 44 steps};
 \end{semilogyaxis}
 \end{tikzpicture}
-\caption{A fault lingers for at most about $2.5L$ steps, and short buffers peak at intermediate $\alpha$. Steps to settle within 1\% of the new state after a permanent step-like fault, by GL buffer length $L$. Simulated scalar GL-FLIF step response (Algorithm~1 of~\cite{mastin2026} without threshold), $\Delta t = 1$, $\tau_m = 10$ steps.}
+\caption{For $\tau_m = 10$ steps a fault lingers for at most about $2.5L$ steps, and short buffers peak at intermediate $\alpha$. Steps to settle within 1\% of the new state after a permanent step-like fault, by GL buffer length $L$. Simulated scalar GL-FLIF step response (Algorithm~1 of~\cite{mastin2026} without threshold), $\Delta t = 1$, $\tau_m = 10$ steps.}
 \label{fig:recovery}
 \end{figure}
 
-With a long buffer ($L = 1024$), lower $\alpha$ always means slower recovery (Figure~\ref{fig:recovery}). With a short buffer ($L = 64$), the truncation leak dominates at low $\alpha$, so recovery time peaks near $\alpha \approx 0.5$. In every case it stays below about $2.5L$ steps, against the untruncated 318{,}000.
+With a long buffer ($L = 1024$), lower $\alpha$ always means slower recovery (Figure~\ref{fig:recovery}). With a short buffer ($L = 64$), the truncation leak dominates at low $\alpha$, so recovery time peaks near $\alpha \approx 0.5$. In every case it stays below about $2.5L$ steps, against the untruncated 318{,}000 at $\alpha = 0.5$.
+
+The ratio to $L$ is specific to $\tau_m = 10$ steps. Once the buffer is truncated, the slowest decay of a real mode $\lambda < 0$ is set by the pole of $H_\lambda(z)$ (Eq.~\eqref{eq:zdomain}) on the real axis closest to $z = 1$, that is, the real root $z^{*}$ of $C_L(z) = \Delta t^{\alpha} \lambda z^{-1}$, which gives a time constant of $-1/\ln z^{*}$ steps. The 1\% recovery time is then at most about
+\begin{equation}
+T_{1\%} \lesssim \min\left( T_{\varepsilon},\; \frac{\ln 100}{|\ln z^{*}|} \right),
+\label{eq:Tcap}
+\end{equation}
+with $T_{\varepsilon}$ from Eq.~\eqref{eq:Teps} at $\varepsilon = 1\%$. In simulations over $\tau_m \in \{10, 100\}$ steps, $L \in \{64, 256, 1024\}$ and $\alpha$ from 0.3 to 1, this estimate never fell below the simulated recovery time and overestimated it by at most a factor of 1.7. The cap grows with $\tau_m$. At $\alpha = 1$ it is $\tau_m \ln 100 \approx 4.6\,\tau_m$ whatever $L$ is, and for $\tau_m = 100$ steps and $L = 64$ recovery takes up to $8.4L$ (537 steps at $\alpha = 0.9$). The figure's cap of about $2.5L$ therefore does not transfer to other membrane time constants; for the hardware, evaluate Eq.~\eqref{eq:Tcap} at its own $\tau_m$.
 
 \subsection{Check in a network}
 
-The exponents were checked in a linear GL network of 100 neurons with random Gaussian coupling (gain 0.8), $\tau_m = 2$ steps, $L = 6000$, and an F-all fault at step 3000. The transient fault removed the neuron for 20 steps. For the permanent fault, the slope of $d\delta/dt$ was fitted, which should scale as $t^{-1-\alpha}$. Fits used 300 to 2500 steps after the fault (Table~\ref{tab:exponents}).
+The exponents were checked in a linear GL network of 100 neurons with random Gaussian coupling ($g\tau_m = 0.8$), $\tau_m = 2$ steps, $L = 6000$, and an F-all fault at step 3000. The transient fault removed the neuron for 20 steps. For the permanent fault, the slope of $d\delta/dt$ was fitted, which should scale as $t^{-1-\alpha}$. Fits used 300 to 2500 steps after the fault (Table~\ref{tab:exponents}).
 
 \begin{table}[h]
 \centering
@@ -284,15 +337,15 @@ For a random reservoir the average effect is simple. If $\Wt$ has i.i.d.\ entrie
 g_{\mathrm{eff}} = g\sqrt{1-p}, \qquad p = k/N.
 \label{eq:geff}
 \end{equation}
-Here $N$, $k$ and $p$ count active neurons only. A neuron far below threshold has $\gamma_j = 0$, so its column of $\Wt$ is zero and it does not contribute to the spectrum; removing it leaves $g$ unchanged. If $\gamma$ varies across neurons, $g^2 = N_{\mathrm{act}}\, \sigma_W^2 \langle \gamma_j^2 \rangle$, with $\sigma_W^2$ the entry variance of $W$ and the average taken over the $N_{\mathrm{act}}$ active neurons.
+Here $N$, $k$ and $p$ count active neurons only. A neuron far below threshold has $\gamma_j = 0$, so its column of $\Wt$ is zero and it does not contribute to the spectrum; removing it leaves $g$ unchanged. If $\gamma$ varies across neurons, the columns of $\Wt$ have different variances and the radius is set by their average~\cite{aljadeff2015}: $g^2 = N_{\mathrm{act}}\, \sigma_W^2 \langle \gamma_j^2 \rangle$, with $\sigma_W^2$ the entry variance of $W$ and the average taken over the $N_{\mathrm{act}}$ active neurons.
 
-Random dropout therefore makes the reservoir more stable and more strongly damped. A reservoir tuned near the edge of chaos ($g\approx 1$~\cite{sompolinsky1988}) drifts into the ordered regime as neurons are lost, and memory capacity should fall with it. A single removal changes $g$ by only about $g/(2N)$, so this matters for cumulative faults, not single ones.
+Random dropout therefore makes the reservoir more stable and more strongly damped. The linearized reservoir loses stability when its eigenvalue disk reaches the leak, at $g\tau_m = 1$. In random rate networks this is also where chaos begins~\cite{sompolinsky1988}, and the transition persists with excitatory--inhibitory structure~\cite{kadmon2015}. Input drive moves the onset of chaos to larger gain~\cite{rajan2010}, so in a driven reservoir the edge of chaos lies somewhat above $g\tau_m = 1$. Either way, losing neurons lowers $g\tau_m$ and moves the reservoir into the ordered regime. With noise, memory capacity should fall too, since driven random networks compute best near this boundary~\cite{bertschinger2004}; in the noise-free linear model it does not (Section~\ref{sec:info}). A single removal changes $g$ by only about $g/(2N)$, so this matters for cumulative faults, not single ones.
 
 \subsection{Stability}
 
 The continuous linear FOR is stable when every eigenvalue satisfies $|\arg\lambda| > \alpha\pi/2$ (Matignon's criterion~\cite{matignon1996}). Smaller $\alpha$ widens the stable sector into the right half-plane, so a fault that pushes a complex eigenvalue pair rightward can leave a low-$\alpha$ reservoir stable when an integer-order one would not be.
 
-This protection does not extend to real eigenvalues. A real eigenvalue crossing zero destabilizes every $\alpha$, and for circular-law reservoirs the first crossing is on the real axis at $g=1$. So $\alpha$ does not move the critical gain of a random reservoir; it only adds margin against faults that act on oscillatory modes.
+This protection does not extend to real eigenvalues. A real eigenvalue crossing zero destabilizes every $\alpha$, and for circular-law reservoirs the first crossing is on the real axis at $g\tau_m = 1$. So $\alpha$ does not move the critical gain of a random reservoir; it only adds margin against faults that act on oscillatory modes.
 
 Near criticality $\alpha$ does amplify the fault's effect on time scales. A mode near zero relaxes on the time scale $|\lambda|^{-1/\alpha}$, so
 \begin{equation}
@@ -300,7 +353,7 @@ Near criticality $\alpha$ does amplify the fault's effect on time scales. A mode
 \end{equation}
 A fault that shifts a slow eigenvalue by a given fraction changes that mode's time scale by twice that fraction at $\alpha = 0.5$, and by the same fraction at $\alpha = 1$.
 
-In a chaotic reservoir ($g>1$) linear response breaks down entirely, and single-neuron clamping can be catastrophic~\cite{vincentlamarre2016}. This analysis assumes the input-driven, echo-state regime.
+In a chaotic reservoir ($g\tau_m>1$) linear response breaks down entirely, and single-neuron clamping can be catastrophic~\cite{vincentlamarre2016}. This analysis assumes the input-driven, echo-state regime.
 
 %=====================================================================
 \section{Information-theoretic consequences}
@@ -324,7 +377,7 @@ That is the neuron's readout weight for lag $k$ squared, times its unique varian
 \end{equation}
 $S = C$ holds for a noise-free linear reservoir driven by i.i.d.\ input. There the faulty $(N-1)$-neuron network also generically keeps $MC = N-1$ (memory capacity is bounded by the number of units~\cite{jaeger2002}), so the total loss including the propagated channel is exactly 1, independent of $\alpha$. With state noise (for example fixed-point quantization, or the spike-count fluctuations dropped by the linearization), $S < C$ and the loss falls below 1 by an $\alpha$-dependent amount.
 
-Table~\ref{tab:mc} shows a numerical check on six random linear GL networks ($N = 10$, gain 0.7, $\tau_m = 4$ steps, $L = 400$, state noise $\sigma = 10^{-3}$, 300 lags, one random neuron removed).
+Table~\ref{tab:mc} shows a numerical check on six random linear GL networks ($N = 10$, $g\tau_m = 0.7$, $\tau_m = 4$ steps, $L = 400$, state noise $\sigma = 10^{-3}$, 300 lags, one random neuron removed).
 
 \begin{table}[h]
 \centering
@@ -344,7 +397,7 @@ $\alpha$ & MC, intact & Loss, readout only & Loss, whole faulty network & Relati
 
 Without noise, one network lost 1.01, 0.95 and 0.79 units at $\alpha = 1$, 0.7 and 0.5. The low-$\alpha$ shortfall from 1 is memory held at lags beyond the 300-lag window, as predicted.
 
-Two things stand out. First, the propagated channel costs 2 to 5 times more than the readout channel, and the ratio grows as $\alpha$ falls, consistent with long memory spreading the fault through the network. Second, lower $\alpha$ loses less capacity in absolute terms but also starts with less, and the relative difference is within the spread. Six small networks are only indicative.
+Two things stand out. First, the propagated channel (whole-network loss minus readout-only loss) costs 1.3 to 3.6 times as much as the readout channel, and the ratio grows as $\alpha$ falls, consistent with long memory spreading the fault through the network. Second, lower $\alpha$ loses less capacity in absolute terms but also starts with less, and the relative difference is within the spread. Six small networks are only indicative.
 
 \subsection{Output error, readout fixed}
 
@@ -440,11 +493,11 @@ The theory yields seven predictions that can be checked against golden-run versu
 \midrule
 P1 & After a permanent fault, $|\delta(t) - \delta^*|$ decays as $t^{-\alpha}$ up to about $L$ steps, then exponentially & Log-log slope of $d\delta/dt$ (about $-1-\alpha$) over a window starting after $|\lambda|^{-1/\alpha}$ steps & Slope independent of $\alpha$, or no break near $L$ \\
 P2 & A transient fault decays as $t^{-1-\alpha}$ & Same fit on a fault of a few steps' duration & As P1 \\
-P3 & The 1\% recovery time is capped near $2.5L$, and peaks at intermediate $\alpha$ for short buffers & Sweep $\alpha$ and $L$; compare with Figure~\ref{fig:recovery} & Recovery time that grows past $L$, or a monotone curve at $L = 64$ \\
+P3 & The 1\% recovery time is capped by Eq.~\eqref{eq:Tcap} (about $2.5L$ for $\tau_m = 10$ steps), and peaks at intermediate $\alpha$ for short buffers & Sweep $\alpha$ and $L$ at the hardware's $\tau_m$; compare with Eq.~\eqref{eq:Tcap} and Figure~\ref{fig:recovery} & Recovery time well above Eq.~\eqref{eq:Tcap}, or a monotone curve in $\alpha$ at $L = 64$, $\tau_m = 10$ \\
 P4 & At a fixed operating point, the mean shift $\delta^*$ is independent of $\alpha$, apart from the effective leak $\varepsilon_L$ & For each $\alpha$, compare the measured $\delta^*$ with that $\alpha$'s own prediction $A'^{-1} q_j r_j$ (Eq.~\ref{eq:dstar}), using its measured $r$ and $\gamma$, with and without the $\varepsilon_L$ correction & Residual mismatch that varies with $\alpha$ after correction \\
 P5 & With a retrained readout, a noise-free linear FOR loses exactly 1 unit of MC per neuron, for every $\alpha$ & Linear GL simulation with long lag windows & Loss that differs from 1 beyond finite-sample bias \\
 P6 & Per-neuron damage ranks by the vulnerability scores of the spiking section & Spearman correlation between predicted score and measured loss, over all $N$ single-neuron faults & No correlation \\
-P7 & Cumulative random dropout lowers the effective gain as $g\sqrt{1-p}$ and memory capacity falls with it & Fit the leading eigenvalues of the faulty linearized network as $p$ grows & Spectral radius that does not shrink with $p$ \\
+P7 & Cumulative random dropout lowers the effective gain as $g\sqrt{1-p}$ and, with noise, memory capacity falls with it & Fit the leading eigenvalues of the faulty linearized network as $p$ grows & Spectral radius that does not shrink with $p$ \\
 \bottomrule
 \end{tabularx}
 \caption{Testable predictions.}
@@ -483,10 +536,14 @@ The most useful open question for the thesis is the one from the redundancy disc
 
 The simulations use SPIRES (\href{https://github.com/txmastin/spires}{txmastin/spires}, \texttt{src/neurons/flif\_gl.c} and \texttt{src/reservoir.c}). The formulas above stay as written; these notes record where the implementation differs from the model they assume.
 \begin{itemize}
-  \item \textbf{Hard threshold, no noise.} Spiking is deterministic (\texttt{V >= V\_th}). The smooth, noise-averaged $f$--$I$ curve can come only from input fluctuations, and with steady input the rate locks to rational values. Escape functions are fitted to golden-run data, not added to the simulator.
-  \item \textbf{Reset matches the model.} Reset overwrites only the current history sample and leaves older samples in place, so the exact spike-response rewrite and the power-law reset kernel $\eta$ hold.
+  \item \textbf{Hard threshold, no noise.} Spiking is deterministic (\texttt{V >= V\_th}). The smooth, noise-averaged $f$--$I$ curve can come only from input fluctuations, and with steady input the rate locks to rational values. The spike probability as a function of free potential (an escape function) is therefore fitted to golden-run data, as in the regression of Section~\ref{sec:linearization}, rather than added to the simulator as noise.
+  \item \textbf{Reset matches the model.} Reset overwrites only the current history sample and leaves older samples in place. The actual potential and the free potential therefore obey the same GL recursion with the same input, and their difference is driven only by what the resets remove. Exactly,
+\begin{equation*}
+V_{j,n} = V^{f}_{j,n} - \sum_{m \le n} \eta_{n-m}\, \kappa_{j,m}, \qquad \eta(z) = \frac{1}{C_L(z) + \Delta t^{\alpha} z^{-1}/\tau_m},
+\end{equation*}
+where $\kappa_{j,m}$ is the value the update would have produced at step $m$ minus $V_{\mathrm{reset}}$ on steps where the neuron is reset or held, and zero otherwise. The reset kernel $\eta$ is the membrane filter's impulse response, $\eta(z) = H_{\lambda}(z)/\Delta t^{\alpha}$ at $\lambda = -1/\tau_m$ in Eq.~\eqref{eq:zdomain}, so it has the same power-law tail as $G$.
   \item \textbf{Absolute refractory period.} For $t_{\mathrm{ref}}$ after a spike, $V$ is held at $V_{\mathrm{reset}}$ and written to the history each step. The reset becomes a clamp of $n_{\mathrm{ref}}$ steps rather than a single pulse, the rate is capped at $1/(n_{\mathrm{ref}}+1)$ per step, and $\gamma_j$ falls at strong drive. The equation in Eq.~\eqref{eq:glflif} omits $t_{\mathrm{ref}}$. Because the refractory clock accumulates $dt$ by repeated addition, $n_{\mathrm{ref}}$ can come out one step short when $t_{\mathrm{ref}}/dt$ is not exactly representable (for example $dt = 0.1$ and $t_{\mathrm{ref}} = 0.3$ give 2 steps, not 3); with $dt = 1$ and integer $t_{\mathrm{ref}}$ it is exact.
-  \item \textbf{Readout state is the post-reset $V$.} \texttt{compute\_output} reads the membrane potential after reset, not the free potential. In linear response the readout sees $\delta V^{f} / \left(1 + \gamma_V \bar\kappa\, \eta(z)\right)$, with mean $\bar V^{f} - \bar\kappa\, G_{\mathrm{DC}}\, r_j$. The direct-channel and memory-capacity formulas use the free potential; expect deviations from this filter in measured direct losses and MC.
+  \item \textbf{Readout state is the post-reset $V$.} \texttt{compute\_output} reads the membrane potential after reset, not the free potential. Treat each reset, with its refractory clamp, as a single pulse of mean size $\bar\kappa_j$, and the spikes by Eq.~\eqref{eq:spikelin}. Then the readout state's fluctuation is $\xtil_j$ passed through the filter $1 - \bar\kappa_j \gamma_j\, \eta(z)$, and its mean is $\bar V_j - \bar\kappa_j\, r_j\, G_{\mathrm{DC}}/\Delta t^{\alpha}$, since $\eta(1) = G_{\mathrm{DC}}/\Delta t^{\alpha}$. The direct-channel and memory-capacity formulas use the free potential; expect deviations from this filter in measured direct losses and MC.
   \item \textbf{Two time scales.} Each input sample is held for $1/dt$ micro-steps, and the readout samples $V$ once per macro-step. Recovery dynamics, $\tau_m$, $t_{\mathrm{ref}}$ and the GL buffer run in micro-steps; MC lags and readout errors are in macro-steps. The numbers in this document assume $dt = 1$, where the two coincide.
   \item \textbf{Buffer length.} The buffer has $T_{\mathrm{mem}}/dt$ slots and the history sum runs to $k = T_{\mathrm{mem}}/dt - 1$, so $L = T_{\mathrm{mem}}/dt - 1$. The truncation leak pulls toward 0, not $V_{\mathrm{rest}}$, which the formula for $\bar V_j$ already includes. History before step 0 is effectively zero, so discard a washout period.
   \item \textbf{One-step spike delay} (confirmed). Neuron $i$ receives $W s_{n-1}$, matching $I_{i,n}$ in Eq.~\eqref{eq:glflif} and the $z^{-1}$ in Eq.~\eqref{eq:zdomain}. Each spike adds $W_{ij}\,dt^{\alpha}$ to $V$.
@@ -513,6 +570,24 @@ P.~Vincent-Lamarre, G.~Lajoie and J.-P.~Thivierge,
 H.~Sompolinsky, A.~Crisanti and H.~J.~Sommers,
 ``Chaos in random neural networks,''
 \emph{Physical Review Letters}, vol.~61, no.~3, p.~259, 1988.
+
+\bibitem{kadmon2015}
+J.~Kadmon and H.~Sompolinsky,
+``Transition to chaos in random neuronal networks,''
+\emph{Physical Review X}, vol.~5, art.~041030, 2015.
+\href{https://doi.org/10.1103/PhysRevX.5.041030}{doi:10.1103/PhysRevX.5.041030}.
+
+\bibitem{rajan2010}
+K.~Rajan, L.~F.~Abbott and H.~Sompolinsky,
+``Stimulus-dependent suppression of chaos in recurrent neural networks,''
+\emph{Physical Review E}, vol.~82, art.~011903, 2010.
+\href{https://doi.org/10.1103/PhysRevE.82.011903}{doi:10.1103/PhysRevE.82.011903}.
+
+\bibitem{bertschinger2004}
+N.~Bertschinger and T.~Natschl\"ager,
+``Real-time computation at the edge of chaos in recurrent neural networks,''
+\emph{Neural Computation}, vol.~16, no.~7, pp.~1413--1436, 2004.
+\href{https://doi.org/10.1162/089976604323057443}{doi:10.1162/089976604323057443}.
 
 \bibitem{matignon1996}
 D.~Matignon,
@@ -546,6 +621,12 @@ T.~Tao and V.~Vu (with an appendix by M.~Krishnapur),
 ``Random matrices: universality of ESDs and the circular law,''
 \emph{Annals of Probability}, vol.~38, no.~5, 2010.
 \href{https://doi.org/10.1214/10-AOP534}{doi:10.1214/10-AOP534}.
+
+\bibitem{aljadeff2015}
+J.~Aljadeff, M.~Stern and T.~Sharpee,
+``Transition to chaos in random networks with cell-type-specific connectivity,''
+\emph{Physical Review Letters}, vol.~114, art.~088101, 2015.
+\href{https://doi.org/10.1103/PhysRevLett.114.088101}{doi:10.1103/PhysRevLett.114.088101}.
 
 \bibitem{lizier2012}
 J.~T.~Lizier, M.~Prokopenko and A.~Y.~Zomaya,
