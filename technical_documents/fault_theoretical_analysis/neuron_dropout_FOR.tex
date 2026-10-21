@@ -61,9 +61,10 @@ with threshold $V_{\mathrm{th}}$, reset to $V_{\mathrm{reset}}$, spikes $s_j$ an
 
 \begin{lemma}
   For $0<\alpha < 1$ and $k\geq 1$ every $c_k(\alpha)$ is negative and
-  \[
+  \begin{equation}
+    \label{eqn:sum_ck}
   \sum_{k=0}^{\infty} c_k(\alpha) = 0
-  \]
+  \end{equation}
 \end{lemma}
 \begin{proof}
   We first show the ratio 
@@ -76,17 +77,23 @@ with threshold $V_{\mathrm{th}}$, reset to $V_{\mathrm{reset}}$, spikes $s_j$ an
   \]
   Note that for positive non-integer $\alpha$ we use the Gamma function $\Gamma(\cdot)$ for binomial coefficients:
   \[
-  {\alpha\choose k} = \frac{\Gamma(\alpha+1)}{\Gamma(k+1)\Gamma(\alpha - k + 1)} \implies \frac{{\alpha\choose k}}{{\alpha\choose k-1}} = 
-  \frac{\frac{\Gamma(\alpha+1)}{\Gamma(k+1)\Gamma(\alpha - k + 1)}  }{\frac{\Gamma(\alpha+1)}{\Gamma(k)\Gamma(\alpha - k + 2)}}
+  {\alpha\choose k} = \frac{\Gamma(\alpha+1)}{\Gamma(k+1)\Gamma(\alpha - k + 1)} \implies -\frac{{\alpha\choose k}}{{\alpha\choose k-1}} = 
+  -\frac{\frac{\Gamma(\alpha+1)}{\Gamma(k+1)\Gamma(\alpha - k + 1)}  }{\frac{\Gamma(\alpha+1)}{\Gamma(k)\Gamma(\alpha - k + 2)}}
   \]
   \[
-  = \frac{\Gamma(k)\Gamma(\alpha-k+2)}{\Gamma(k+1)\Gamma(\alpha-k+1)}
+  = -\frac{\Gamma(k)\Gamma(\alpha-k+2)}{\Gamma(k+1)\Gamma(\alpha-k+1)}
   \]
   Note that $\Gamma(z+1) = z\Gamma(z)$ for any complex number with positive real part. Therefore we can simplify in the following manner:
   \[
-  \frac{(\alpha-k+1)\Gamma(k)\Gamma(\alpha-k+1)}{k\Gamma(k)\Gamma(\alpha-k+1)}
-  = \frac{}{}
+  -\frac{\Gamma(k)\Gamma(\alpha-k+2)}{\Gamma(k+1)\Gamma(\alpha-k+1)} = -\frac{(\alpha-k+1)\Gamma(k)\Gamma(\alpha-k+1)}{k\Gamma(k)\Gamma(\alpha-k+1)}
+  = -\frac{\alpha - k + 1}{k}
   \]
+  \[
+  = \frac{k-1-\alpha}{k}
+  \]
+  Let $\rho_k = \frac{k-1-\alpha}{k}$. Then we can write $c_k = \rho_k c_{k-1}$. Applying this recursively, we see that for $k\geq 2$ $c_k = \rho_k\rho_{k-1}\cdots\rho_2c_1$. Notice that $c_1 = -\alpha$, and for $k\geq 2$ we know that $\rho_k > 0$; therefore $c_k$ never changes sign and remains negative.
+
+  Next we show (\ref{eqn:sum_ck}). 
 \end{proof}
 \subsection{Linearization}
 \label{sec:linearization}
@@ -108,7 +115,7 @@ s_{j,n} \approx r_j + \gamma_j \left( V^{f}_{j,n} - \bar V_j \right).
 \end{itemize}
 The $f$--$I$ curve here is the \emph{noise-averaged} one: rate against mean input, with input fluctuations held at the variance neuron $j$ sees in the golden run. The reservoir is driven, and those fluctuations smooth the curve near the rheobase, where the deterministic curve's slope diverges. The curve depends on $\alpha$ (Mastin et al.~\cite{mastin2026} show that lower $\alpha$ raises the effective rheobase), on $L$ and on the fixed-point format, so $\gamma_j$ does too.
 
-There are two practical ways to get $r_j$, $\gamma_j$ and $\bar V_j$. One is to drive a single GL-FLIF neuron with input matching neuron $j$'s golden-run statistics, sweep the mean and take the slope of the measured rate. The other uses the golden run directly: replay the recorded $I_{j,n}$ through Eq.~\eqref{eq:vfree}, then regress $s_{j,n}$ on $V^{f}_{j,n}$. The slope estimates $\gamma_j$ and the mean of $V^{f}_{j,n}$ gives $\bar V_j$. The regression includes truncation and quantization automatically and costs nothing extra on the HiL rig.
+The rate $r_j$ is the time average of $s_{j,n}$ in the golden run, and $\bar V_j$ is the time average of $V^{f}_{j,n}$, obtained by replaying the recorded $I_{j,n}$ through Eq.~\eqref{eq:vfree}. There are two practical ways to get $\gamma_j$. One is to drive a single GL-FLIF neuron with input matching neuron $j$'s golden-run statistics, sweep the mean and take the slope of the measured rate. The other uses the golden run directly: average $s_{j,n}$ and $V^{f}_{j,n}$ over consecutive windows of several hundred to a thousand steps, and regress the window averages of $s_j$ on those of $V^{f}_j$. The slope estimates $\gamma_j$, includes truncation and quantization automatically, and costs nothing extra on the HiL rig. The windows are essential. Because the gain depends on frequency (see below), regressing $s_{j,n}$ on $V^{f}_{j,n}$ step by step measures a much larger, fast gain instead. In a simulated neuron ($\alpha = 0.5$, $L = 64$, $\tau_m = 10$ steps), the step-by-step slope was 0.84 against $\gamma_j = 0.175$ from the sweep, while 1000-step windows gave 0.1765, and a recorded run of $2 \times 10^{5}$ steps was enough to get within about 5\%~\cite{linsupp}. The window has to be longer than the time over which resets push back, which is longer at low $\alpha$: 100 steps sufficed at $\alpha = 1$.
 
 The linear FOR follows from Eq.~\eqref{eq:vfree} by substituting the linear spike response into $I_{i,n}$. Neuron $i$ receives the previous step's spikes, so Eq.~\eqref{eq:spikelin} is applied at $n-1$, and the recurrent input splits into a part that depends on the state and a constant:
 \begin{equation*}
@@ -133,7 +140,7 @@ A = -\tfrac{1}{\tau_m}\mathrm{Id} + \Wt,\quad \Wt = W\,\mathrm{diag}(\gamma),\qu
 \end{equation}
 In the continuous limit ($\Delta t \to 0$ with the memory window $L\Delta t \to \infty$) this is $D^{\alpha}x = Ax + Bu + \beta$. A neuron far below threshold has $r_j = 0$ and $\gamma_j = 0$ and drops out of $\Wt$, so removing it is harmless except through the readout. A silent neuron near threshold is different: under the noise-averaged curve its $\gamma_j$ is small but nonzero, and a fault can switch it on (Section~\ref{sec:threshold}).
 
-The linearization has two known gaps. A static gain on the free potential describes the spike response well at frequencies below the firing rate, but it misses the reset and refractory effects that shape the response at higher frequencies, so frequency-domain results such as $H'(\omega)$ are approximate at the high end. And the fluctuations of the binary spike train around $r_j + \gamma_j (V^{f}_j - \bar V_j)$ are dropped. They act as state noise, which matters in Section~\ref{sec:info}.
+The linearization has two known gaps. First, $\gamma_j$ is a zero-frequency gain, and the spike response to faster changes in the free potential is larger. A slow rise in $V^{f}$ raises the rate, and the extra resets then lower the potential over the neuron's whole memory, cancelling much of the rise; a brief rise gets through before that cancellation. In the simulated neuron above, the gain matched $\gamma_j$ only for fluctuations with periods of about 1000 steps or more. It was twice $\gamma_j$ at a period of 100 steps and seven times $\gamma_j$ at 10 steps, all far slower than the firing rate of about 0.09 spikes per step. An integer-order neuron in a similar regime stays at $\gamma_j$ down to periods of about 300 steps, so the gap widens as $\alpha$ falls~\cite{linsupp}. Mean shifts (Section~\ref{sec:settle}) are unaffected. Frequency-domain results such as $H'(\omega)$, and the memory and information measures of Section~\ref{sec:info}, are accurate only at low frequencies. Second, the fluctuations of the binary spike train around $r_j + \gamma_j (V^{f}_j - \bar V_j)$ are dropped. They act as state noise, which matters in Section~\ref{sec:info}.
 
 \subsection{Three variants of ``set its weights to zero''}
 
@@ -474,7 +481,11 @@ Combining the linear results with the spiking picture gives a vulnerability rank
   \item \textbf{Direct channel, readout fixed:} $|w_j| \cdot \mathrm{std}(x_j)$.
   \item \textbf{Direct channel, readout retrained:} $\beta_j^2 \cdot \Var(x_j \mid x_{-j})$, from Eq.~\eqref{eq:dmc}.
   \item \textbf{Propagated channel, mean shift:} $\|W_{:,j}\| \cdot r_j$, the lost mean drive of Eq.~\eqref{eq:dstar}, weighted by the slow-mode components of $A'$.
-  \item \textbf{Propagated channel, fluctuation:} $\|W_{:,j}\| \cdot \gamma_j \cdot \mathrm{std}(x_j)$, the lost input-carrying drive, weighted the same way.
+  \item \textbf{Propagated channel, fluctuation:} $\|W_{:,j}\| \cdot \mathrm{std}(z_j)$, weighted the same way. Here $z_j$ is neuron $j$'s recorded spike train passed through the membrane filter,
+  \[
+  z_{j,n} = \Delta t^{\alpha}\left( -\frac{z_{j,n-1}}{\tau_m} + s_{j,n-1} \right) - \sum_{k=1}^{L} c_k\, z_{j,n-k},
+  \]
+  the fluctuating drive that $j$ delivered per unit of outgoing weight. It is measured directly rather than through the linear model's $\gamma_j \xtil_j$, which understates it. In the simulated neuron of Section~\ref{sec:linearization}, the measured drive was about five times the linear prediction at $\alpha = 0.5$ and about twice at $\alpha = 1$, because it includes both the response faster than $\gamma_j$ and the spike-train fluctuations the linear model drops~\cite{linsupp}.
   \item \textbf{Cascade risk:} the number of postsynaptic neurons whose mean input lies within $|W_{ij} r_j|$ of the rheobase.
 \end{itemize}
 Neurons far below threshold ($r_j = 0$, $\gamma_j = 0$) are harmless to remove unless the readout depends on them. A silent neuron near threshold is not covered by this: it sends nothing now, but a fault elsewhere can switch it on.
@@ -536,7 +547,7 @@ The most useful open question for the thesis is the one from the redundancy disc
 
 The simulations use SPIRES (\href{https://github.com/txmastin/spires}{txmastin/spires}, \texttt{src/neurons/flif\_gl.c} and \texttt{src/reservoir.c}). The formulas above stay as written; these notes record where the implementation differs from the model they assume.
 \begin{itemize}
-  \item \textbf{Hard threshold, no noise.} Spiking is deterministic (\texttt{V >= V\_th}). The smooth, noise-averaged $f$--$I$ curve can come only from input fluctuations, and with steady input the rate locks to rational values. The spike probability as a function of free potential (an escape function) is therefore fitted to golden-run data, as in the regression of Section~\ref{sec:linearization}, rather than added to the simulator as noise.
+  \item \textbf{Hard threshold, no noise.} Spiking is deterministic (\texttt{V >= V\_th}). The smooth, noise-averaged $f$--$I$ curve can come only from input fluctuations, and with steady input the rate locks to rational values. The $f$--$I$ curve and its slope are therefore measured with the input fluctuations each neuron sees in the golden run (Section~\ref{sec:linearization}), rather than by adding noise to the simulator.
   \item \textbf{Reset matches the model.} Reset overwrites only the current history sample and leaves older samples in place. The actual potential and the free potential therefore obey the same GL recursion with the same input, and their difference is driven only by what the resets remove. Exactly,
 \begin{equation*}
 V_{j,n} = V^{f}_{j,n} - \sum_{m \le n} \eta_{n-m}\, \kappa_{j,m}, \qquad \eta(z) = \frac{1}{C_L(z) + \Delta t^{\alpha} z^{-1}/\tau_m},
@@ -633,6 +644,11 @@ J.~T.~Lizier, M.~Prokopenko and A.~Y.~Zomaya,
 ``Local measures of information storage in complex distributed computation,''
 \emph{Information Sciences}, vol.~208, pp.~39--54, 2012.
 \href{https://doi.org/10.1016/j.ins.2012.04.016}{doi:10.1016/j.ins.2012.04.016}.
+
+\bibitem{linsupp}
+``Linearizing the GL-FLIF reservoir: a detailed walkthrough,''
+supplement to this document (\texttt{linearization\_supplement.pdf}), 2026.
+Simulation code in \texttt{linearization\_supplement\_sim/}.
 
 \end{thebibliography}
 
